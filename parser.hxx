@@ -165,8 +165,6 @@ class Parser{
     }
 
     public:
-    
-
     void synchronize()
     {
         advance();
@@ -187,10 +185,7 @@ class Parser{
             }
 
             advance();
-        }
-
-        cout<<"parsed"<<"\n";
-        
+        }     
     }
     
     static void Error(Token t, string message)
@@ -213,7 +208,6 @@ class Parser{
         {
             return nullptr;
         }
-
     }
     Parser(vector<Token>&tokens){
         this->tokens = tokens;
@@ -222,5 +216,3 @@ class Parser{
 };
 
 Lox Parser::lox;
-
-

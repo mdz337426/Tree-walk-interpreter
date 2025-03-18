@@ -2,6 +2,7 @@
 #include<string>
 #include<vector>
 #include<variant>
+using namespace std;
 
 enum class TokenType{
     //SINGLE CHAR TYPE

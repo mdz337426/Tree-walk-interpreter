@@ -15,5 +15,4 @@ virtual Object visitLitreral( const Literal & obj )=0;
 
 virtual Object visitUnary( const Unary & obj )=0;
 
-
 };
