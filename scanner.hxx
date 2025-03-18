@@ -17,16 +17,14 @@ class RuntimeError {
         Token getToken() const {
             return token;
         }
-    
     private:
         std::string message;
         Token token;
     };
-
 class Lox{
     bool Error;
     public:
-    static unordered_map<string , TokenType>keywords;
+    static unordered_map<string,TokenType>keywords;
     Lox(){
         this->Error = false;
     }
@@ -53,7 +51,6 @@ class Lox{
 
     static bool hadRunTimeError;
     static bool hadError;
-
     bool haderror()
     {
         return Error;
@@ -75,13 +72,10 @@ class Lox{
         std::cerr<<(error.getMessage()+ "\n [line"+to_string(error.getToken().line)+"]");
         hadRunTimeError = true;
     }
-
 };
 
 bool Lox::hadError = false;
-
 bool Lox::hadRunTimeError = false;
-
 std::unordered_map< std::string, TokenType> Lox :: keywords;
 
 class Scanner{
@@ -177,8 +171,7 @@ class Scanner{
         TokenType type;
         if(Lox::keywords.find(text)!= Lox::keywords.end())
         {
-            type = Lox::keywords[text];
-              
+            type = Lox::keywords[text];            
         }
         else
         {
@@ -207,7 +200,6 @@ class Scanner{
             start = current;
             scanToken();
         }
-
         tokens.push_back(Token(TokenType::EoF, "", nullptr, line));
         return tokens;
     }
@@ -257,8 +249,8 @@ class Scanner{
                         else{
                             lox.ERROR(line, "Unexpected character."+c);
                         }
-            }
-    }
+                    }
+                }
 };
 
 Lox Scanner::lox;
