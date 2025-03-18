@@ -1,33 +1,60 @@
+#pragma once
+#include<unordered_map>
+#include<optional>
+#include"tokens.hxx"
+#include"variant"
 
+
+class RuntimeError {
+    public:
+        RuntimeError(const std::string& message, const Token& token)
+            : message(message), token(token) {}
+    
+        std::string getMessage() const {
+            return message;
+        }
+    
+        Token getToken() const {
+            return token;
+        }
+    
+    private:
+        std::string message;
+        Token token;
+    };
 
 class Lox{
     bool Error;
-    map<string , tokType>keywords;
-
     public:
-    Lox()
-    {
-        Error=false;
-        keywords.clear();
-        keywords["and"]=tokType::AND;
-        keywords["class"]=tokType::CLASS;
-        keywords["else"]=tokType::ELSE;
-        keywords["false"]=tokType::FALSE;
-        keywords["for"]=tokType::FOR;
-        keywords["fun"]=tokType::FUN;
-        keywords["if"]=tokType::IF;
-        keywords["nil"]=tokType::NIL;
-        keywords["or"]=tokType::OR;
-        keywords["print"]=tokType::PRINT;
-        keywords["return"]=tokType::RETURN;
-        keywords["super"]=tokType::SUPER;
-        keywords["this"]=tokType::THIS;
-        keywords["true"]=tokType::TRUE;
-        keywords["var"]=tokType::VAR;
-        keywords["while"]=tokType::WHILE;   
+    static unordered_map<string , TokenType>keywords;
+    Lox(){
+        this->Error = false;
+    }
+    static void initializeKeywords() {
+        keywords = {
+            {"and", TokenType::AND},
+            {"class", TokenType::CLASS},
+            {"else", TokenType::ELSE},
+            {"false", TokenType::FALSE},
+            {"for", TokenType::FOR},
+            {"fun", TokenType::FUN},
+            {"if", TokenType::IF},
+            {"nil", TokenType::NIL},
+            {"or", TokenType::OR},
+            {"print", TokenType::PRINT},
+            {"return", TokenType::RETURN},
+            {"super", TokenType::SUPER},
+            {"this", TokenType::THIS},
+            {"true", TokenType::TRUE},
+            {"var", TokenType::VAR},
+            {"while", TokenType::WHILE}
+        };
     }
 
-    bool hadError()
+    static bool hadRunTimeError;
+    static bool hadError;
+
+    bool haderror()
     {
         return Error;
     }
@@ -39,60 +66,79 @@ class Lox{
 
     void report(int line , string where, string message)
     {
-    cout<<"[line "<<line<<"] Error"<<where<<": "<<message<<'\n';
+    cout<<"[line "<<line<<"] Error "<<where<<" : "<<message<<'\n';
     bool hadError = true;
+    }
+
+    static void runtimeError(RuntimeError error)
+    {
+        std::cerr<<(error.getMessage()+ "\n [line"+to_string(error.getToken().line)+"]");
+        hadRunTimeError = true;
     }
 
 };
 
+bool Lox::hadError = false;
+
+bool Lox::hadRunTimeError = false;
+
+std::unordered_map< std::string, TokenType> Lox :: keywords;
+
 class Scanner{
-    Lox lox;
-    int curr_line;
     string source;
-    vector<token> tokens;
-    char advance(int& i)
+    vector<Token> tokens;
+    int start;
+    int current;
+    int line;
+
+    char advance()
     {
-        return source[i++];
+        current++;
+        return source[current-1];
     }
 
-    void addToken(token t)
+    void addToken(TokenType type)
     {
-        tokens.push_back(t);
+        addToken(type, nullptr);
     }
 
-    char peek(int i)
+    void addToken(TokenType type, std::variant<double, string, nullptr_t> literal)
     {
-        return source[i];
+        string text = source.substr(start, current-start);
+        tokens.push_back(Token(type, text, literal, line));
     }
 
-    bool match(char expected,int& i)
+    char peek()
     {
-        if (i>= source.size()) return false;
-        if(source[i]!=expected) return false;
+        if(isAtEnd()) return '\0';
+        return source[current];
+    }
 
-        i++;
+    bool match(char expected)
+    {
+        if (isAtEnd()) return false;
+        if(source[current]!=expected) return false;
+        current++;
         return true;
     }
 
-    void String(int& i)
+    void Estring()
     {
-        int start = i;
-        int temp_line = curr_line;
-        while(peek(i)!='"' && source[i]!='\0')
+        while(peek()!='"' && !(isAtEnd()))
         {
-            if(peek(i)=='\n') curr_line++;
-            advance(i);
+            if(peek()=='\n') line++;
+            advance();
         }
 
-        if(source[i]=='\0')
+        if(source[current]=='\0')
         {
-            lox.ERROR(curr_line, "Unterminated string.");
+            lox.ERROR(line, "Unterminated string.");
             return;
         }
 
-        advance(i);
-        string val = source.substr(start, i-start-1);
-        addToken(token(tokType::STRING, val, "", temp_line));
+        advance();
+        string val = source.substr(start, current-start+1);
+        addToken(TokenType::STRING, val);
     }
 
     bool isDigit(char c)
@@ -100,10 +146,10 @@ class Scanner{
         return c-'0'>=0 && c-'0'<=9;
     }
 
-    char peek_next(int i)
+    char peek_next()
     {
-        if(i+i>= source.length()) return '\0';
-        return source[i+1];
+        if(current+1 >= source.size()) return '\0';
+        return source[current+1];
     }
 
     bool isAlpha(char c)
@@ -116,88 +162,103 @@ class Scanner{
         return isAlpha(c) || isdigit(c);
     }
 
-    void number(int& i)
+    void number()
     {
-        int start = i-1;
-        while (isdigit(source[i])) advance(i);
-        
-        if(peek(i)=='.' && isDigit(peek_next(i))) advance(i);
-        while (isdigit(source[i])) advance(i);
-        addToken(token(tokType::NUMBER, source.substr(start, i-start),"", curr_line));
+        while (isdigit(source[current])) advance();
+        if(peek()=='.' && isDigit(peek_next())) advance();
+        while (isdigit(source[current])) advance();
+        addToken(TokenType::NUMBER, std::stod(source.substr(start, current-start)));
     }
 
-    void identifier(int& i)
+    void identifier()
     {
-        int start = i-1;
-        while (isAlphanumeric(source[i])) advance(i);
-        addToken(token(tokType::IDENTIFIER, source.substr(start, i-start), "", curr_line));
+        while (isAlphanumeric(peek())) advance();
+        string text = source.substr(start, current-start);
+        TokenType type;
+        if(Lox::keywords.find(text)!= Lox::keywords.end())
+        {
+            type = Lox::keywords[text];
+              
+        }
+        else
+        {
+            type = TokenType::IDENTIFIER;
+        }
+        addToken(type);
+    }
+
+    bool isAtEnd()
+    {
+        return current >= source.size();
     }
 
     public:
-    Scanner(string _line) : source(_line){ 
-        curr_line=0;
+    static Lox lox;
+    Scanner(string source) : source(source){ 
+        this->line=1;
+        this->current=0;
+        this->start=0;
     }
-
     
-    void scanToken(int i)
+    vector<Token> scanTokens()
     {
-        while(source[i]!='\0')
+        while(!isAtEnd())
         {
-            char c = advance(i);
-            switch (c)
-            {
-                case '(' : addToken(token(tokType::LEFT_PAREN, "(",    "", curr_line)) ;break;
-                case ')' : addToken(token(tokType::RIGHT_PAREN, ")",   "", curr_line)) ;break;
-                case '{' : addToken(token(tokType::LEFT_BRACE, "{",    "", curr_line)) ;break;
-                case '}' : addToken(token(tokType::RIGHT_BRACE, "}",   "", curr_line)) ;break;
-                case ',' : addToken(token(tokType::COMMA, ",", "", curr_line)) ;break;
-                case '.' : addToken(token(tokType::DOT, ".", "", curr_line)) ;break;
-                case '-' : addToken(token(tokType::MINUS, "-", "", curr_line)) ;break;
-                case '+' : addToken(token(tokType::PLUS, "+", "", curr_line)) ;break;
-                case ';' : addToken(token(tokType::SEMICLOLON, ";",    "", curr_line)) ;break;
-                case '*' : addToken(token(tokType::STAR, "*", "", curr_line)) ;break;
-                case '!': addToken( match('=',i) ? token(tokType::BANG_EQUAL, "!=", "", curr_line):token(tokType::BANG, "!", "", curr_line)); break;
-                case '>': addToken(match('=',i) ? token(tokType::GREATER_EQUAL, ">=", "", curr_line) :token(tokType::GREATER, ">", "",  curr_line));break;
-                case '<': addToken(match('=',i) ? token(tokType::LESS_EQUAL, "<=", "", curr_line):token(tokType::LESS, "<", "", curr_line));   break;
-                case '=' : addToken(match('=',i) ? token(tokType::EQUAL_EQUAL, "==", "", curr_line) :token(tokType::EQUAL, "=", "", curr_line));break;
-                case '/' : 
-                        if(match('/',i))
-                        {
-                            while (peek(i)!='\n' && i<source.size()) advance(i);
-                        }
-                        else
-                        {
-                            addToken(token(tokType::SLASH, "/", "", curr_line));
-                        }
-                        break;
-                case ' ':break;
-                case '\r':break;
-                case '\t':break;
-                case '\n' : curr_line++ ; break;
-                case '"' : String(i); break;
-
-                default:
-                        if(isdigit(c))
-                            {
-                                number(i);
-                            }
-                        else if (isAlpha(c))
-                            {
-                                identifier(i);
-                            }
-                        else{            
-                                lox.ERROR(curr_line, "Unexpected chracter.");
-                            }
-                        break;
-            }
+            start = current;
+            scanToken();
         }
 
-        if(source[i]=='\0') 
-        {tokens.push_back(token(tokType::EoF, "", "", curr_line));
-        }
+        tokens.push_back(Token(TokenType::EoF, "", nullptr, line));
+        return tokens;
     }
 
-    vector<token> get_tokens(){
-        return this->tokens;
+    void scanToken()
+    {
+        char c = advance();
+        switch (c) {
+            case '(': addToken(TokenType::LEFT_PAREN); break;
+            case ')': addToken(TokenType::RIGHT_PAREN); break;
+            case '{': addToken(TokenType::LEFT_BRACE); break;
+            case '}': addToken(TokenType::RIGHT_BRACE); break;
+            case ',': addToken(TokenType::COMMA); break;
+            case '.': addToken(TokenType::DOT); break;
+            case '-': addToken(TokenType::MINUS); break;
+            case '+': addToken(TokenType::PLUS); break;
+            case ';': addToken(TokenType::SEMICOLON); break;
+            case '*': addToken(TokenType::STAR); break;
+            case '!': addToken(match('=') ?TokenType::BANG_EQUAL : TokenType::BANG) ; break;
+            case '=': addToken(match('=') ?TokenType::EQUAL_EQUAL : TokenType::EQUAL) ; break;
+            case '<': addToken(match('=') ?TokenType::LESS_EQUAL : TokenType::LESS) ; break;
+            case '>': addToken(match('=') ?TokenType::GREATER_EQUAL : TokenType::GREATER) ; break;
+            case '/':  if(match('/')){
+                            while(peek() != '\n' && !(isAtEnd())) advance();
+                            }
+                        else{
+                            addToken(TokenType::SLASH);
+                        }
+                        break;
+            case '\t': break;
+            case '\n':line++; break;
+            case '"': Estring(); break;
+            case ' ':break;
+            case 'o': if(peek()=='r') {
+                        addToken(TokenType::OR);
+                        }
+                        break;
+            default:
+                        if(isDigit(c))
+                        {
+                            number();
+                        }
+                        else if(isAlpha(c))
+                        {
+                            identifier();
+                        }
+                        else{
+                            lox.ERROR(line, "Unexpected character."+c);
+                        }
+            }
     }
 };
+
+Lox Scanner::lox;

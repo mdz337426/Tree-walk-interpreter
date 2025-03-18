@@ -6,7 +6,6 @@
 class ast_printer: public visitor{
     public:
 
-
     Object print(Exprptr expr)
     {
         return expr->accept(*this);
@@ -29,9 +28,8 @@ class ast_printer: public visitor{
 
     }
 
-     Object visitLiteral(const Literal& obj)
+    Object visitLiteral(const Literal& obj)
     {
-        if(obj.value.size()==0) return "nil";
         return obj.value;
     }
 
@@ -52,7 +50,7 @@ class ast_printer: public visitor{
        {
         s+=" ";
         Object obj=list[i]->accept(*this);
-        string temp = std::get<string>(obj);
+        string temp = std::holds_alternative<string>(obj) ? std::get<string>(obj) : to_string(std::get<double>(obj));
         s+=temp;
        }
        s+=")";
@@ -60,21 +58,3 @@ class ast_printer: public visitor{
     }
 
 };
-
-
-int main()
-{
-    Exprptr exp = std::make_shared<Binary>(
-        std::make_shared<Unary>(token(tokType::MINUS, "-", 1), std::make_shared<Literal>("123")),
-        token(tokType::STAR, "*", 1),
-        std::make_shared<Grouping>(std::make_shared<Literal>("45.67"))
-    );
-
-    // Print AST
-    ast_printer printer;
-    Object result = printer.print(exp);
-    std::cout << std::get<string>(result) << std::endl;
-
-    return 0;
-}
-    
